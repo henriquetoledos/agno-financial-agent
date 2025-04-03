@@ -2,6 +2,10 @@
 
 .DS_Store
 
+# Ignore data files
+*.xlsx
+*.pdf
+
 # Python cache
 .mypy_cache
 *__pycache__*
