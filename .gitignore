@@ -5,6 +5,8 @@
 # Ignore data files
 *.xlsx
 *.pdf
+*.csv
+*.docx
 
 # Python cache
 .mypy_cache
