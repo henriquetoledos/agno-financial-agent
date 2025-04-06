@@ -6,6 +6,12 @@
 
 This document outlines the structure, questions, and expected data fields for an agent designed to retrieve company information for private equity investors.
 
+## Most important features
+
+- Email to send when no answer is provided
+- Agent to check confidence levels
+- "We don't have Artefacto, only about "Artefact" -> I will bring info about the 
+
 ---
 
 ## 🏢 Company Fundamentals
@@ -90,6 +96,9 @@ docker run \
 ## Business Rules Orientation
 
 """
-
+'- If you are not able to answer a specific question or the question is not relevant for your company, please leave the answer field blank
+- If you, for a given metric, only collect data for a part of your organization/activities, please elaborate in the 'Comment' section
+- The red text highlights information important to ensure correct and consistent data 
 
 """
+
