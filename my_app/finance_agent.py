@@ -93,8 +93,8 @@ from agno.tools.local_file_system import LocalFileSystemTools
 from custom_tools.read_excel_tool import excel_to_csv
 from agno.tools.csv_toolkit import CsvTools
 from pathlib import Path
-import os
 
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -108,24 +108,22 @@ if not openai_api_key:
     # st.stop()
     raise ValueError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
 
-# --------------- LOAD EXCEL FILES -------------------
-# You can add your Excel files here or load them dynamically
-# excel_to_csv()
 
 
-# --------------- AGENT INITIALIZATION -------------------
+
+# --------------- KNOWLEDGE BASE INITIALIZATION -------------------
 # agent_storage: str = "tmp/agents.db"
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 ## PDF Knowledge Base
-pdf_kb = PDFKnowledgeBase(
-    path="data/knowledge/pdf",
-    vector_db=PgVector(
-        table_name="companies_reports",
-        db_url=db_url,
-    ),
-)
+# pdf_kb = PDFKnowledgeBase(
+#     path="data/knowledge/pdf",
+#     vector_db=PgVector(
+#         table_name="companies_reports",
+#         db_url=db_url,
+#     ),
+# )
 
 ## CSV Knowledge Base
 csv_kb = CSVKnowledgeBase(
@@ -141,7 +139,6 @@ csv_kb = CSVKnowledgeBase(
 knowledge_base = CombinedKnowledgeBase(
     sources=[
         csv_kb,
-        pdf_kb,
     ],
     vector_db=PgVector(
         table_name="combined_documents",
