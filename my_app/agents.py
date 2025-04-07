@@ -1,20 +1,18 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.models.anthropic import Claude
 from agno.knowledge.pdf import PDFKnowledgeBase
 from agno.knowledge.csv import CSVKnowledgeBase
-from agno.knowledge.combined import CombinedKnowledgeBase
 from agno.vectordb.pgvector import PgVector
 from agno.team.team import Team
-from agno.tools.file import FileTools
 from agno.tools.csv_toolkit import CsvTools
 from agno.tools.local_file_system import LocalFileSystemTools
 from agno.storage.agent.postgres import PostgresAgentStorage
 from agno.tools.email import EmailTools
-# from custom_tools.excel_tools import ExcelTools, 
+from pydantic import BaseModel, Field
 
 import os
 from dotenv import load_dotenv
@@ -29,9 +27,18 @@ sender_email = "investoriqagent@gmail.com"
 sender_name = "InvestorIQ Agent"
 sender_passkey = os.getenv("EMAIL_PASSKEY")
 
-
 # Database connection
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
+
+# ------------ Defining Base Models ------------
+
+class UserQuestions(BaseModel):
+    questions: List[str] = Field(..., description="The questions to be answered")
+class QuestionAnswer(BaseModel):
+    question: str = Field(..., description="The question to be answered")
+    topic: str = Field(..., description="The topic of the question, Company Fundamentals, ESG, Financials, or Security")
+    answer: str = Field(..., description="The answer to the question")
+    confidence: float = Field(..., description="Confidence level of the answer")
 
 
 def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str] = None) -> Team:
@@ -57,13 +64,13 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
     
     # Initialize knowledge bases
     # PDF Knowledge Base
-    pdf_kb = PDFKnowledgeBase(
-        path="data/knowledge/pdf",
-        vector_db=PgVector(
-            table_name="companies_reports",
-            db_url=db_url,
-        ),
-    )
+    # pdf_kb = PDFKnowledgeBase(
+    #     path="data/knowledge/pdf",
+    #     vector_db=PgVector(
+    #         table_name="companies_reports",
+    #         db_url=db_url,
+    #     ),
+    # )
 
     # CSV Knowledge Base
     csv_kb = CSVKnowledgeBase(
@@ -90,10 +97,23 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
     storage = PostgresAgentStorage(table_name="financial_agent_sessions", db_url=db_url)
     
     # Excel directory for Excel tools
-    excel_dir = Path("data/knowledge")
+    # excel_dir = Path("data/knowledge")
     # excel_files = list(excel_dir.glob("*.xlsx"))
     
-    
+    question_parser = Agent(
+        name = "Question Intaker",
+        model=OpenAIChat(id="gpt-4o"),
+        role="Your goal is to parse the user questions and send them back to the coordinator",
+        description=
+            """
+            You are a Private Equity Financial Expert,",
+            "You will receive a list of questions from the user. You will need to parse them and ask the search agent to find the answers.
+            "You might receive the question in a single message, multiple lines, or with Excel files, Words, or PDFs. Use your tools to read the files and parse the questions.
+            """,
+        response_model=UserQuestions,
+         show_tool_calls=True
+    )
+
     # Create the Excel Processor Agent
     excel_processor = Agent(
         name="Excel Processor",
@@ -166,6 +186,9 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
             "All of the numerical values, unless explained otherwise, are in M€ (Million Euros)",
             "OPEX is Operational Expenditure, and it's percentual",
         ],
+        response_model= QuestionAnswer,
+        # debug_mode=True,
+
 
     )
     
@@ -199,29 +222,39 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
     sanity_checker = Agent(
         name="Sanity Checker",
         model=model,
-        role="Verifies the accuracy and completeness of answers.",
+        role="Assess the quality of the answer generated before sending it to the investor",
         description="""
             You are a verification expert for financial information.
             You check answers for accuracy, completeness, and confidence level.
             You ensure that the information provided is reliable and backed by evidence.
         """,
-        instructions=[
-            "Review answers for accuracy and completeness.",
-            "Assess confidence level based on available evidence.",
-            "Verify that numerical data is correctly represented.",
-            "Flag any potential inconsistencies or uncertainties.",
-            "Suggest improvements or additional information needed."
-        ],
+        instructions=
+            """"
+            You must follow the rules below to check the answers:
+
+            Scoring Criteria:
+            - Relevance to question (semantic similarity).
+            - Clarity and professionalism of writing.
+            - Factual accuracy (cross-check with sources).
+            - Compliance with legal/regulatory standards.
+            Presence of citation or traceability.
+            
+            Decision Logic:
+            If score > threshold (e.g., 90%), return to investor directly.
+            If score between 60–90%, flag for human review or Email Agent escalation.
+            If < 60%, automatically trigger email for manual response.
+
+
+            """,
         storage=storage,
         markdown=True,
     )
 
-    receiver_email = "<henrique.toledo@artefact.com>"
-    sender_email = "<agent@investoriq.com>"
-    sender_name = "InvestorIQ Agent"
-    sender_passkey = "test_passkey"
 
     email_sender = Agent(
+        name="Email Sender",
+        model=model,
+        role="Sends emails to the Fund Manager or the CFO of the Startup for additional information",
         tools=[
             EmailTools(
                 receiver_email=receiver_email,
@@ -229,7 +262,45 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
                 sender_name=sender_name,
                 sender_passkey=sender_passkey,
             )
-        ]
+        ],
+        description= "You are a Private Equity Financial Expert. You are responsible for asking for additional information to the Fund Manager or the CFO of the Startup.",
+        instructions=""""
+            You are an email sender agent.
+            You send emails to the receiver_email provided to ask for additional information for the companies.
+            
+            Those are the rules you need to follow to write the email:
+            1. Identify internal stakeholders (e.g., fund admin, company CFO)
+            2. Identify all of the answers that need to be sent to the user
+            3. Your email must contain the following information:
+            
+            - Original investor question
+            - Summary of failed attempts to answer
+            - Request for specific input or clarification
+            - Include response deadline (e.g., within 24 hours)
+            - Use this template on the body of the email:
+            
+            Here is an example of the email you should send:
+
+            # START OF THE TEMPLATE
+
+            Subject: Request for Clarification on Investor Question
+            Hi [Recipient’s Name],
+            An investor from our fund recently submitted the following question:
+            "[Insert Investor Question]"
+            Our Investor Relation AI Agent system attempted to generate a response based on existing internal data, but the confidence score was below our acceptable threshold for automatic replies.
+
+            Action Required:
+            Could you please review the question and provide: a complete and investor-ready response we can share, ideally by [Insert Deadline, e.g., COB tomorrow]
+            If this needs to be addressed by someone else on your team, kindly forward and CC us.
+            Let us know if you need additional context or support.
+            Thanks so much,
+            Investor Relations Team - InvestorIQ
+            
+            # END OF THE TEMPLATE
+
+            you must always sent the email to henrique.toledo@artefact.com
+
+            """
     )
     
     # Create Coordinator Team
@@ -237,24 +308,38 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
         name="Financial Expert Team",
         mode="coordinate",
         model=model,
-        members=[searcher, excel_processor, sanity_checker,csv_analyzer_agent],
+        members=[
+            question_parser,
+            searcher,
+            csv_analyzer_agent,
+            # email_sender,
+            sanity_checker,]
+            ,
         description="""
             You are a senior Private Equity Financial Expert leading a team of specialists.
             Your goal is to provide accurate, structured responses to investor questions by coordinating your team effectively.
             The questions might be about financial information, or ESG policies, or security measures.
         """,
-        instructions=[
-            "You are the coordinator of a team of financial experts.",
+        instructions="""
+            This is the flow you are going to follow:,
+                1. First, understand the user question with your knowledge in Private Equity
+                2. Send the user questions to question_parser agent to parse the questions and send them back to you
+                3. Then, check if the question is related to a numerical output or a textual information, If 
+                4. If the user question involves a numerical output, ask the csv_analyzer_agent to analyze the csv file and end the response,
+                5. If the question is about a textual information, ask the Searcher to find the answer in the knowledge base. Orient the Searcher to not retrieve numerical data from the knowledge base, as it works with text embeddings.
+                6. If a question is answered by the csv_analyzer_agent ,do not ask Searcher to look for it.
+                7. If the confidence level of the answer is below 60%, you should ask the email_sender to send an email to the user asking for more information. Only ask to send the email if you have tried to find the answer in the knowledge base and the answer is below 60%.
+                8. If the answer to the question is 0, or 'No answer', also ask the email_sender to send an email to the user asking for more information
+                9. If the answer is above 60%, you can send it directly to the user.
+                10. Finally, compile the answers and provide a structured response to the user.
 
-            "This is the flow you are going to follow:",
-            "1. First, understand the user question with your knowledge.", 
-            "2. If the user question involves a numerical output, ask the csv_analyzer_agent to analyze the csv file and end the response",
-            "3. If the question is about a textual information, ask the Searcher to find the answer in the knowledge base. Never return numerical information ",
-            "4. If a question is answered by the csv_analyzer_agent , do not ask Searcher to look for it",
-            "Finally, compile the answers and provide a structured response to the user.",
-            "Your answer must follow this structure: Question 1: Answer 1, Question 2: Answer 2, etc.",
-            "Structure your responses clearly with headings, bullet points, and tables when appropriate.",
-        ],
+            Your answer must follow this structure
+                Question 1: Answer 1
+                Question 2: Answer 2
+                Question 3: Answer 3
+
+            Structure your responses clearly with headings, bullet points, and tables when appropriate.
+        """,
         # storage=storage,
         session_id=session_id,
         add_datetime_to_instructions=True,
@@ -264,9 +349,12 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
     
     # Change back to coordinator, choose what agent you want to return
     return coordinator
+    # return coordinator
 
 if __name__ == "__main__":
     # Example usage
     team = get_financial_team()
 
-    team.print_response("Let me know what information you have on Special Project 11",stream=True)
+    team.print_response("Send an email to your recipient asking about Special Project 14",stream=True)
+
+
