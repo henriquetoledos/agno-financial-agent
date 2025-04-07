@@ -75,6 +75,38 @@ def main():
     st.sidebar.markdown("Configure your preferences here.")  # Add any necessary sidebar content
 
     ####################################################################
+    # Sidebar - File Input for Questions
+    ####################################################################
+    st.sidebar.markdown("#### 📄 Upload Questions File")
+    uploaded_questions_file = st.sidebar.file_uploader(
+        "Upload a file containing questions (.txt or .csv)", type=["txt", "csv"], key="questions_file"
+    )
+
+    if uploaded_questions_file:
+        try:
+            # Process the uploaded file
+            file_type = uploaded_questions_file.name.split(".")[-1].lower()
+            if file_type == "txt":
+                # Read questions from a text file (one question per line)
+                questions = uploaded_questions_file.read().decode("utf-8").splitlines()
+            elif file_type == "csv":
+                # Read questions from a CSV file (assuming one question per row)
+                import csv
+                questions = [row[0] for row in csv.reader(uploaded_questions_file.read().decode("utf-8").splitlines())]
+            else:
+                st.sidebar.error("Unsupported file type!")
+                questions = []
+
+            # Add each question to the chat history
+            for question in questions:
+                if question.strip():  # Ensure the question is not empty
+                    add_message("user", question.strip())
+            st.sidebar.success(f"Successfully added {len(questions)} questions!")
+        except Exception as e:
+            st.sidebar.error(f"Error processing file: {str(e)}")
+
+
+    ####################################################################
     # Get user input
     ####################################################################
     if prompt := st.chat_input("Ask me any investor question..."):

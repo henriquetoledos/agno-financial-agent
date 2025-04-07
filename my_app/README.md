@@ -65,6 +65,9 @@ This document outlines the structure, questions, and expected data fields for an
 
 ---
 
+## Questions Examples
+
+1. What is the 
 
 
 To run the docker image for PGVector, run the following command:
