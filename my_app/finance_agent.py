@@ -90,7 +90,7 @@ from agno.team.team import Team
 from agno.media import File
 from agno.tools.file import FileTools
 from agno.tools.local_file_system import LocalFileSystemTools
-from custom_tools.read_excel_tool import excel_to_csv
+# from custom_tools.read_excel_tool import excel_to_csv
 from agno.tools.csv_toolkit import CsvTools
 from pathlib import Path
 
@@ -232,5 +232,5 @@ coordinator = Team(
 
 
 # --------------- TESTING IN THE PROMPT  -------------------
-# if __name__ == "__main__":
-#     coordinator.print_response("What was Ericsson's revenue in 2024? Who is Ericsson's CEO?")
+if __name__ == "__main__":
+    coordinator.print_response("What was Ericsson's revenue in 2024? Who is Ericsson's CEO?")

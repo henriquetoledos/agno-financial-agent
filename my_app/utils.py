@@ -98,42 +98,55 @@ def add_message(role: str, content: str, tool_calls: Optional[List[Dict[str, Any
     st.session_state["messages"].append(message)
 
 
-def display_tool_calls(container, tool_calls: List[Dict[str, Any]]) -> None:
-    """Display tool calls in a formatted way
-    
+def display_tool_calls(tool_calls_container, tools):
+    """Display tool calls in a streamlit container with expandable sections.
+
     Args:
-        container: The Streamlit container to render the tool calls in
-        tool_calls: List of tool calls to display
+        tool_calls_container: Streamlit container to display the tool calls
+        tools: List of tool call dictionaries containing name, args, content, and metrics
     """
-    tool_calls_html = ""
-    for idx, tool_call in enumerate(tool_calls):
-        tool_name = tool_call.get("name", "Unknown Tool")
-        args = tool_call.get("arguments", {})
-        
-        # Format arguments as pretty JSON if possible
-        try:
-            if isinstance(args, str):
-                args_obj = json.loads(args)
-                args_str = json.dumps(args_obj, indent=2)
-            elif isinstance(args, dict):
-                args_str = json.dumps(args, indent=2)
-            else:
-                args_str = str(args)
-        except:
-            args_str = str(args)
-        
-        result = tool_call.get("result", "")
-        
-        tool_calls_html += f"""
-        <div class="tool-calls">
-            <div class="tool-call-name">🔧 {tool_name}</div>
-            <div class="tool-call-args">{args_str}</div>
-            <div class="tool-call-result">Result: {result}</div>
-        </div>
-        """
-    
-    if tool_calls_html:
-        container.markdown(tool_calls_html, unsafe_allow_html=True)
+    try:
+        with tool_calls_container.container():
+            for tool_call in tools:
+                tool_name = tool_call.get("tool_name", "Unknown Tool")
+                tool_args = tool_call.get("tool_args", {})
+                content = tool_call.get("content")
+                metrics = tool_call.get("metrics", {})
+
+                # Add timing information
+                execution_time_str = "N/A"
+                try:
+                    if metrics:
+                        execution_time = metrics.time
+                        if execution_time is not None:
+                            execution_time_str = f"{execution_time:.2f}s"
+                except Exception as e:
+                    logger.error(f"Error displaying tool calls: {str(e)}")
+                    pass
+
+                with st.expander(
+                    f"🛠️ {tool_name.replace('_', ' ').title()} ({execution_time_str})",
+                    expanded=False,
+                ):
+                    # Show query with syntax highlighting
+                    if isinstance(tool_args, dict) and "query" in tool_args:
+                        st.code(tool_args["query"], language="sql")
+
+                    # Display arguments in a more readable format
+                    if tool_args and tool_args != {"query": None}:
+                        st.markdown("**Arguments:**")
+                        st.json(tool_args)
+
+                    if content:
+                        st.markdown("**Results:**")
+                        try:
+                            st.json(content)
+                        except Exception as e:
+                            st.markdown(content)
+
+    except Exception as e:
+        logger.error(f"Error displaying tool calls: {str(e)}")
+        tool_calls_container.error("Failed to display tool results")
 
 
 def export_chat_history() -> str:
@@ -254,3 +267,9 @@ def about_widget() -> None:
         
         Built with [Agno](https://agno.com/) and [Streamlit](https://streamlit.io/)
         """)
+
+
+def sidebar_widget():
+    """Placeholder implementation for sidebar_widget."""
+    st.sidebar.title("Settings")
+    st.sidebar.markdown("Configure your preferences here.")

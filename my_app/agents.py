@@ -23,27 +23,16 @@ from dotenv import load_dotenv
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
-
-# csv_dir_final = Path("data/knowledge/csv/Extract_database_Absolute_data.csv")
-
-# csv_analyzer_agent = Agent(
-#         #  model=Claude(id="claude-3-5-sonnet-20241022"),
-#         model=OpenAIChat(id="gpt-4o"),
-#         markdown=True,
-#         show_tool_calls=True,
-#         tools=[CsvTools(csvs=[csv_dir_final]),LocalFileSystemTools()],
-#         instructions=[
-#             "You are a Private Equity Financial Expert. You have access to a knowledge base of financial reports and other informations about the companies",
-#             "You are going to answer the questions based on the csv files provided",
-#             "All of the numerical values, unless explained otherwise, are in M€ (Million Euros)",
-#         ],
-
-#     )
-
+# -------- Email Configuration ---------
+receiver_email = "henrique.toledo@artefact.com"
+sender_email = "investoriqagent@gmail.com"
+sender_name = "InvestorIQ Agent"
+sender_passkey = os.getenv("EMAIL_PASSKEY")
 
 
 # Database connection
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
+
 
 def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str] = None) -> Team:
     """Initialize the financial agent team with all necessary components
@@ -85,41 +74,25 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
         ),
     )
 
-    # Combine knowledge bases
-    knowledge_base = CombinedKnowledgeBase(
-        sources=[
-            csv_kb,
-            # pdf_kb,
-        ],
-        vector_db=PgVector(
-            table_name="combined_documents",
-            db_url=db_url,
-        ),
-    )
+    # # Combine knowledge bases
+    # knowledge_base = CombinedKnowledgeBase(
+    #     sources=[
+    #         csv_kb,
+    #         # pdf_kb,
+    #     ],
+    #     vector_db=PgVector(
+    #         table_name="combined_documents",
+    #         db_url=db_url,
+    #     ),
+    # )
     
     # Initialize agents with storage for persistence
     storage = PostgresAgentStorage(table_name="financial_agent_sessions", db_url=db_url)
     
     # Excel directory for Excel tools
     excel_dir = Path("data/knowledge")
-    excel_files = list(excel_dir.glob("*.xlsx"))
+    # excel_files = list(excel_dir.glob("*.xlsx"))
     
-    # Create Question Intaker Agent
-    question_intaker = Agent(
-        name="Question Intaker",
-        model=model,
-        role="Intakes the user's question(s).",
-        description="""
-            You are a Private Equity Financial Expert.
-            You will receive questions from the user. You will need to parse them and ask the Searcher to find the answers.
-            You might receive the question in a single message, multiple lines, or embedded in Excel files, Word documents, or PDFs.
-            Use your tools to read the files and parse the questions.
-        """,
-        tools=[FileTools()],
-        # storage=storage,
-        show_tool_calls=True,
-        markdown=True,
-    )
     
     # Create the Excel Processor Agent
     excel_processor = Agent(
@@ -149,32 +122,30 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
 
     csv_dir = Path("data/knowledge/csv/Extract_database_Absolute_data.csv")
 
-    # Create agent with the custom tools and PandasTools
-    csv_parser_agent = Agent(
-        #  model=Claude(id="claude-3-5-sonnet-20241022"),
-        name = "CSV Parser Agent",
-        model=model,
-        markdown=True,
-        show_tool_calls=True,
-        tools=[CsvTools(csvs=[csv_dir]),LocalFileSystemTools()],
-        instructions=[
-            "You are a Private Equity Financial Expert. You have access to a knowledge base of financial reports and other informations about the companies",
-            "First always get the list of files",
-            "Then check the columns in the file",
-            # "Then run the query to answer the question",
-            "Your goal is to analyze the csv file to determine to what database it should be inserted."
-            "You need to determine what is the unique identifier for the table. Example: Project Name, or Project Name + Fund.",
-            "You should then split the csv file into 2 separate files; one for the numerical and boolean values (TRUE / FALSE, Yes / No / Blank), which will be inserted into a different csv, and the other which is the text values, which are going to be added to a vector database",
-            "For the numerical and boolean values, create a new csv file with the same name as the original file, but with the suffix '_numerical' added to it, in the folder data/knowledge/csv/numerical, and for the text values, create a new csv file with the same name as the original file, but with the suffix '_text' added to it, in the folder data/knowledge/csv/text",
-            "You should keep in both csv files the unique identifier column or composite key, and the column names should be the same as in the original file.",
-            "Always wrap column names with double quotes if they contain spaces or special characters",
-            "Remember to escape the quotes in the JSON string (use \")",
-            "Use single quotes for string values"
-        ],
+    # # Create agent with the custom tools and PandasTools
+    # csv_parser_agent = Agent(
+    #     #  model=Claude(id="claude-3-5-sonnet-20241022"),
+    #     name = "CSV Parser Agent",
+    #     model=model,
+    #     markdown=True,
+    #     show_tool_calls=True,
+    #     tools=[CsvTools(csvs=[csv_dir]),LocalFileSystemTools()],
+    #     instructions=[
+    #         "You are a Private Equity Financial Expert. You have access to a knowledge base of financial reports and other informations about the companies",
+    #         "First always get the list of files",
+    #         "Then check the columns in the file",
+    #         # "Then run the query to answer the question",
+    #         "Your goal is to analyze the csv file to determine to what database it should be inserted."
+    #         "You need to determine what is the unique identifier for the table. Example: Project Name, or Project Name + Fund.",
+    #         "You should then split the csv file into 2 separate files; one for the numerical and boolean values (TRUE / FALSE, Yes / No / Blank), which will be inserted into a different csv, and the other which is the text values, which are going to be added to a vector database",
+    #         "For the numerical and boolean values, create a new csv file with the same name as the original file, but with the suffix '_numerical' added to it, in the folder data/knowledge/csv/numerical, and for the text values, create a new csv file with the same name as the original file, but with the suffix '_text' added to it, in the folder data/knowledge/csv/text",
+    #         "You should keep in both csv files the unique identifier column or composite key, and the column names should be the same as in the original file.",
+    #         "Always wrap column names with double quotes if they contain spaces or special characters",
+    #         "Remember to escape the quotes in the JSON string (use \")",
+    #         "Use single quotes for string values"
+    #     ],
 
-    )
-
-    csv_dir_final = Path("data/knowledge/csv/Extract_database_Absolute_data.csv")
+    # )
 
     csv_analyzer_agent = Agent(
         #  model=Claude(id="claude-3-5-sonnet-20241022"),
@@ -183,7 +154,7 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
         model=OpenAIChat(id="gpt-4o"),
         markdown=True,
         show_tool_calls=True,
-        tools=[CsvTools(csvs=[csv_dir_final]),LocalFileSystemTools()],
+        tools=[CsvTools(csvs=[csv_dir]),LocalFileSystemTools()],
         description="""
             You are a Private Equity Financial Expert. You have access to a knowledge base of financial reports and other informations about the companies.
             You are going to answer the questions based on the csv files provided.""",
@@ -266,7 +237,7 @@ def get_financial_team(model_id: str = "openai:gpt-4o", session_id: Optional[str
         name="Financial Expert Team",
         mode="coordinate",
         model=model,
-        members=[question_intaker, searcher, excel_processor, sanity_checker,csv_analyzer_agent],
+        members=[searcher, excel_processor, sanity_checker,csv_analyzer_agent],
         description="""
             You are a senior Private Equity Financial Expert leading a team of specialists.
             Your goal is to provide accurate, structured responses to investor questions by coordinating your team effectively.
@@ -298,4 +269,4 @@ if __name__ == "__main__":
     # Example usage
     team = get_financial_team()
 
-    team.print_response("What is the Total value for Special Project 11? What is the OPEX?")
+    team.print_response("Let me know what information you have on Special Project 11",stream=True)
